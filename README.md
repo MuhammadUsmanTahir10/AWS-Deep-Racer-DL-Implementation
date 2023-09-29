@@ -235,6 +235,8 @@ The implementation of this reward function has produced notable results during t
 
 **Formulating Complex Reward Functions**
 
+**Follow The Tangent**
+
 My journey into intricate reward functions commenced with a pivotal decision—to diversify my approach. After experimenting with numerous custom reward functions, I made a strategic choice to initiate my exploration by embracing one of AWS's foundational functions, aptly named "follow the tangent." This choice marked the inception of my quest to elevate my model's performance. Initially, my primary goal was to construct a model with the consistent capability to conquer the track. Once I solidified this fundamental groundwork, my mission evolved into a meticulous process of refinement and expansion upon the initial function. My aim was to find a delicate equilibrium among various reward components.
 
 As my journey unfolded, I grew acutely aware of the imperative nature of comprehensively assessing the impact of each reward function component on overall performance. To attain this, I dedicated considerable effort to retraining my models during the initial phase of my work, diligently unraveling the intricate influences of these components on my agent's behavior. One remarkable revelation emerged along this path—closely adhering to the centerline strategy bore minimal fruit when paired with the base model, underscoring the imperative for a more nuanced approach. Ultimately, my expedition culminated in the creation of a comprehensive reward function that harmoniously integrated various elements, including a speed reward. This achievement represents a well-rounded approach that now expertly guides my DeepRacer model's behavior.
@@ -339,3 +341,82 @@ Final Reward Calculation: The final reward is calculated by combining both the r
 
 This reward function encourages the agent to stay within the track boundaries and penalizes it for getting too close to objects. The specific distances and penalties are fine-tuned to achieve the desired behavior. The result is a reward function that guides the DeepRacer agent to navigate the track while avoiding collisions with objects in its path, striking a balance between speed and safety. The exact performance of this function depends on the specific track and agent configuration but aims to optimize completion rates and lap times.
 
+**Mathematical Modeling**
+
+I began by selecting one of the example reward functions provided by DeepRacer. This initial function rewarded the car for driving along the center of the road, granting a high reward for precisely center-aligned driving. However, it had a binary nature—dividing the reward by 2 if the car deviated slightly from the center and providing a reward of 0 if the car ventured off the track. This simplicity left room for improvement; I aimed for a more gradual and sophisticated approach.
+
+To create a more nuanced reward function, I envisioned one with a peak reward when the car maintained the center of the road and a gradual decline as it deviated off-center. The ideal function would be symmetrical, ensuring that rewards mirrored penalties on either side of the road. After careful consideration, I opted for a Gaussian curve as the foundation for our first custom reward function. This new reward function was designed to encourage smoother driving behaviors and more precise navigation, aligning with our goal of maximizing the agent's performance on the track.
+
+I took charge of the model training and assessment, closely monitoring its performance through video simulations. My approach involved making iterative adjustments to the reward function based on my observations. For example, if the car exhibited slow driving, I introduced a penalty to incentivize more efficient speed management using mathematical functions. During this phase, each reward function was tested independently, with no cross-training between them. It wasn't until later, after the races, that I discovered the possibility of cloning models and building upon the previous training. In retrospect, this knowledge could have been a valuable asset.
+
+The final reward function comprised four distinct components, as illustrated in the accompanying plots:
+
+Recognizing the predominantly leftward curves on the track, I introduced a reward for driving slightly left of the center, employing a shifted Gaussian curve.
+
+To discourage large steering angles, I implemented a Cassini curve, penalizing extreme turns.
+
+To accelerate the car when it lagged in speed, I employed a sine function, ensuring optimal velocity maintenance.
+
+I even delved into the intricate balance of rewarding low steering at high speeds and high steering at slow speeds. This was achieved using a sine function with two input parameters—speed and steering angle.
+
+My holistic approach to crafting this reward function aimed to finesse the DeepRacer's behavior, ultimately optimizing its performance across various racing.
+
+![image](https://github.com/MuhammadUsmanTahir10/AWS-Deep-Racer-DL-Implementation/assets/44548891/bb9a4501-c30d-4de7-b0bc-63f7b10acb90)
+
+
+Lets look at code for this model:
+
+    import math
+    
+    def reward_function(params):
+    
+        # Read input parameters
+        track_width = params['track_width']
+        distance_from_center = params['distance_from_center']
+        all_wheels_on_track = params['all_wheels_on_track']
+        is_left_of_center = params['is_left_of_center']
+        steering_angle = params['steering_angle']
+        speed = params['speed']
+        
+        if is_left_of_center == True:
+            distance_from_center *= -1
+    
+        # implementation of reward function for distance from center
+        reward = (1 / (math.sqrt(2 * math.pi * (track_width*2/15) ** 2)) * math.exp(-((
+                distance_from_center + track_width/20) ** 2 / (4 * track_width*2/15) ** 2))) *(track_width*1/3)
+        
+        if not all_wheels_on_track:
+            reward = 1e-3
+    
+        # implementation of reward function for steering angle
+        STEERING_THRESHOLD = 14.4
+        
+        if abs(steering_angle) < STEERING_THRESHOLD:
+            steering_reward = math.sqrt(- (8 ** 2 + steering_angle ** 2) + math.sqrt(4 * 8 ** 2 * steering_angle ** 2 + (12 ** 2) ** 2) ) / 10
+        else:
+            steering_reward = 0
+    
+        # aditional reward if the car is not steering too much
+        reward *= steering_reward
+    
+        # reward for the car taking fast actions (speed is in m/s)
+        reward *= math.sin(speed/math.pi * 5/6)
+        
+        # same reward for going slow with greater steering angle then going fast straight ahead 
+        reward *= math.sin(0.4949 * (0.475 * (speed - 1.5241) + 0.5111 * steering_angle ** 2))
+    
+        return float(reward)
+
+This custom reward function aims to incentivize the DeepRacer to stay near the center of the track, avoid excessive steering, maintain a reasonable speed, and strike a balance between speed and steering. The specific mathematical calculations and parameters used in this function are designed to optimize the car's performance in navigating the track.
+
+Take Aways:
+
+In conclusion, the journey of mastering the art of winning a car race with DeepRacer has provided valuable insights and takeaways. Here are three key points to consider:
+
+Reward Function Experimentation: The heart of success lies in the reward function. It's essential to play around with different reward functions and utilize the simulation movie to assess how each modification influences your car's behavior. Fine-tuning this critical component can make a substantial difference in performance.
+
+Diverse Training Environments: To achieve stable and versatile behavior, it's advisable to train your model on various racing courses. This diversity in training environments helps your DeepRacer adapt to different track scenarios and enhances its overall racing capabilities.
+
+Complexity vs. Training Time: While crafting more complex reward functions and exploring additional movement possibilities within the DeepRacer UI can lead to improved performance, it's crucial to be mindful of the associated increase in training time. Finding the right balance between complexity and training efficiency is key.
+
+With these insights and the collective experience of the DeepRacer community, we encourage you to embark on your own DeepRacer journey. Have fun experimenting, learning, and pushing the boundaries of autonomous racing. Success in the world of DeepRacer awaits, and the thrill of the race is yours to explore!
