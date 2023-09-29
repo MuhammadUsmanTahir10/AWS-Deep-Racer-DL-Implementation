@@ -58,32 +58,35 @@ In the realm of DeepRacer, crafting a well-structured reward function is fundame
 
 Lets delve into code:
 
-def reward_function(params):
-    '''
-    Example of rewarding the agent to stay inside the two borders of the track
-    '''
+    def reward_function(params):
+        '''
+        Example of rewarding the agent to stay inside the two borders of the track
+        '''
+        
+        # Read input parameters
+        all_wheels_on_track = params['all_wheels_on_track']
+        distance_from_center = params['distance_from_center']
+        track_width = params['track_width']
+        
+        # Give a very low reward by default
+        reward = 1e-3
     
-    # Read input parameters
-    all_wheels_on_track = params['all_wheels_on_track']
-    distance_from_center = params['distance_from_center']
-    track_width = params['track_width']
+        # Give a high reward if no wheels go off the track and 
+        # the car is somewhere in between the track borders 
+        if all_wheels_on_track and (0.5*track_width - distance_from_center) >= 0.05:
+            reward = 1.0
     
-    # Give a very low reward by default
-    reward = 1e-3
-
-    # Give a high reward if no wheels go off the track and 
-    # the car is somewhere in between the track borders 
-    if all_wheels_on_track and (0.5*track_width - distance_from_center) >= 0.05:
-        reward = 1.0
-
-    # Always return a float value
-    return reward
+        # Always return a float value
+        return reward
 
 Now, let's break down the components of this reward function:
 
 params is a dictionary containing various input parameters that provide information about the car's state.
+
 all_wheels_on_track indicates whether all wheels of the car are on the track.
+
 distance_from_center tells us how far the car is from the center of the track.
+
 track_width provides the width of the track.
 
 The reward function begins by setting a low default reward (1e-3). It then evaluates two conditions: whether all wheels are on the track and whether the car is sufficiently close to the center of the track (within 5% of the track's width). If both conditions are met, the function assigns a high reward of 1.0. Finally, it ensures that a float value is always returned as the reward.
@@ -96,45 +99,48 @@ In the realm of DeepRacer, the reward function plays a pivotal role in shaping t
 
 Lets look at code:
 
-def reward_function(params):
-    '''
-    Example of penalize steering, which helps mitigate zig-zag behaviors
-    '''
+    def reward_function(params):
+        '''
+        Example of penalize steering, which helps mitigate zig-zag behaviors
+        '''
+        
+        # Read input parameters
+        distance_from_center = params['distance_from_center']
+        track_width = params['track_width']
+        abs_steering = abs(params['steering_angle']) # Only need the absolute steering angle
     
-    # Read input parameters
-    distance_from_center = params['distance_from_center']
-    track_width = params['track_width']
-    abs_steering = abs(params['steering_angle']) # Only need the absolute steering angle
-
-    # Calculate 3 marks that are farther and farther away from the center line
-    marker_1 = 0.1 * track_width
-    marker_2 = 0.25 * track_width
-    marker_3 = 0.5 * track_width
-
-    # Give a higher reward if the car is closer to the center line and vice versa
-    if distance_from_center <= marker_1:
-        reward = 1.0
-    elif distance_from_center <= marker_2:
-        reward = 0.5
-    elif distance_from_center <= marker_3:
-        reward = 0.1
-    else:
-        reward = 1e-3  # likely crashed/close to off-track
-
-    # Steering penalty threshold, change the number based on your action space setting
-    ABS_STEERING_THRESHOLD = 15 
-
-    # Penalize reward if the car is steering too much
-    if abs_steering > ABS_STEERING_THRESHOLD:
-        reward *= 0.8
-
-    return float(reward)
+        # Calculate 3 marks that are farther and farther away from the center line
+        marker_1 = 0.1 * track_width
+        marker_2 = 0.25 * track_width
+        marker_3 = 0.5 * track_width
+    
+        # Give a higher reward if the car is closer to the center line and vice versa
+        if distance_from_center <= marker_1:
+            reward = 1.0
+        elif distance_from_center <= marker_2:
+            reward = 0.5
+        elif distance_from_center <= marker_3:
+            reward = 0.1
+        else:
+            reward = 1e-3  # likely crashed/close to off-track
+    
+        # Steering penalty threshold, change the number based on your action space setting
+        ABS_STEERING_THRESHOLD = 15 
+    
+        # Penalize reward if the car is steering too much
+        if abs_steering > ABS_STEERING_THRESHOLD:
+            reward *= 0.8
+    
+        return float(reward)
 
 Now, let's break down the components of this reward function:
 
 params is a dictionary containing various input parameters that provide information about the car's state.
+
 distance_from_center indicates how far the car is from the center of the track.
+
 track_width provides the width of the track.
+
 abs_steering calculates the absolute value of the car's steering angle.
 
 The reward function calculates three markers, each progressively farther from the center line. These markers serve as reference points for the car's position relative to the center line. The function assigns rewards based on the car's distance from these markers. If the car is very close to the center line (within marker_1), it receives a high reward (1.0), indicating optimal performance. As the car deviates further from the center line, the reward diminishes, with a value of 0.1 assigned if it's close to the track's edge. If the car strays too far from the center (beyond marker_3), it receives a low default reward (1e-3), indicating a potential crash or near-off-track situation. Additionally, the function penalizes the reward if the car's absolute steering angle exceeds a predefined threshold (ABS_STEERING_THRESHOLD). Excessive steering is discouraged, as it can lead to erratic zig-zag behaviors during training.
@@ -147,66 +153,74 @@ This reward function is a complex example, designed to encourage the agent to re
 
 Lets discuss code:
 
-import math
+    import math
 
-def reward_function(params):
-    '''
-    Example of rewarding the agent to stay inside two borders
-    and penalizing getting too close to the objects in front
-    '''
-    all_wheels_on_track = params['all_wheels_on_track']
-    distance_from_center = params['distance_from_center']
-    track_width = params['track_width']
-    objects_location = params['objects_location']
-    agent_x = params['x']
-    agent_y = params['y']
-    _, next_object_index = params['closest_objects']
-    objects_left_of_center = params['objects_left_of_center']
-    is_left_of_center = params['is_left_of_center']
-    
-    # Initialize reward with a small number but not zero
-    # because zero means off-track or crashed
-    reward = 1e-3
-    
-    # Reward if the agent stays inside the two borders of the track
-    if all_wheels_on_track and (0.5 * track_width - distance_from_center) >= 0.05:
-        reward_lane = 1.0
-    else:
-        reward_lane = 1e-3
-    
-    # Penalize if the agent is too close to the next object
-    reward_avoid = 1.0
-    
-    # Distance to the next object
-    next_object_loc = objects_location[next_object_index]
-    distance_closest_object = math.sqrt((agent_x - next_object_loc[0])**2 + (agent_y - next_object_loc[1])**2)
-    
-    # Decide if the agent and the next object are on the same lane
-    is_same_lane = objects_left_of_center[next_object_index] == is_left_of_center
-    
-    if is_same_lane:
-        if 0.5 <= distance_closest_object < 0.8:
-            reward_avoid *= 0.5
-        elif 0.3 <= distance_closest_object < 0.5:
-            reward_avoid *= 0.2
-        elif distance_closest_object < 0.3:
-            reward_avoid = 1e-3  # Likely crashed
-    
-    # Calculate reward by putting different weights on
-    # the two aspects above
-    reward += 1.0 * reward_lane + 4.0 * reward_avoid
-    return reward
+    def reward_function(params):
+        '''
+        Example of rewarding the agent to stay inside two borders
+        and penalizing getting too close to the objects in front
+        '''
+        all_wheels_on_track = params['all_wheels_on_track']
+        distance_from_center = params['distance_from_center']
+        track_width = params['track_width']
+        objects_location = params['objects_location']
+        agent_x = params['x']
+        agent_y = params['y']
+        _, next_object_index = params['closest_objects']
+        objects_left_of_center = params['objects_left_of_center']
+        is_left_of_center = params['is_left_of_center']
+        
+        # Initialize reward with a small number but not zero
+        # because zero means off-track or crashed
+        reward = 1e-3
+        
+        # Reward if the agent stays inside the two borders of the track
+        if all_wheels_on_track and (0.5 * track_width - distance_from_center) >= 0.05:
+            reward_lane = 1.0
+        else:
+            reward_lane = 1e-3
+        
+        # Penalize if the agent is too close to the next object
+        reward_avoid = 1.0
+        
+        # Distance to the next object
+        next_object_loc = objects_location[next_object_index]
+        distance_closest_object = math.sqrt((agent_x - next_object_loc[0])**2 + (agent_y - next_object_loc[1])**2)
+        
+        # Decide if the agent and the next object are on the same lane
+        is_same_lane = objects_left_of_center[next_object_index] == is_left_of_center
+        
+        if is_same_lane:
+            if 0.5 <= distance_closest_object < 0.8:
+                reward_avoid *= 0.5
+            elif 0.3 <= distance_closest_object < 0.5:
+                reward_avoid *= 0.2
+            elif distance_closest_object < 0.3:
+                reward_avoid = 1e-3  # Likely crashed
+        
+        # Calculate reward by putting different weights on
+        # the two aspects above
+        reward += 1.0 * reward_lane + 4.0 * reward_avoid
+        return reward
 
 Now, let's break down the components of this reward function:
 
 params is a dictionary containing various input parameters that provide information about the car's state.
+
 all_wheels_on_track indicates whether all wheels of the car are on the track.
+
 distance_from_center tells us how far the car is from the center of the track.
+
 track_width provides the width of the track.
+
 objects_location contains the locations of objects in front of the car.
+
 agent_x and agent_y represent the coordinates of the agent's position.
+
 closest_objects contains information about the closest objects.
+
 objects_left_of_center indicates whether objects are left of the center.
+
 is_left_of_center represents whether the agent is left of the center.
 
 The reward function starts by initializing a base reward (1e-3), which is greater than zero to signify that the agent is still on the track. It then evaluates two key aspects:
@@ -235,77 +249,93 @@ This journey of discovery and innovation underscored the adaptability and potent
 
 Lets look at reward function for this model:
 
-def reward_function(params):
-
-    # Reward weights
-    speed_weight = 100
-    heading_weight = 100
-    steering_weight = 50
-
-    # Initialize the reward based on current speed
-    max_speed_reward = 10 * 10
-    min_speed_reward = 3.33 * 3.33
-    abs_speed_reward = params['speed'] * params['speed']
-    speed_reward = (abs_speed_reward - min_speed_reward) / (max_speed_reward - min_speed_reward) * speed_weight
+    import math
     
-    # - - - - - 
+    def reward_function(params):
     
-    # Penalize if slow speed action space
-    if not params['speed'] < 5:
-     	return 1e-3    
-
-    # Penalize if the car goes off track
-    if not params['all_wheels_on_track']:
-        return 1e-3
+        # Reward weights
+        speed_weight = 100
+        heading_weight = 100
+        steering_weight = 50
     
-    # - - - - - 
+        # Initialize the reward based on current speed
+        max_speed_reward = 10 * 10
+        min_speed_reward = 3.33 * 3.33
+        abs_speed_reward = params['speed'] * params['speed']
+        speed_reward = (abs_speed_reward - min_speed_reward) / (max_speed_reward - min_speed_reward) * speed_weight
+        
+        # - - - - - 
+        
+        # Penalize if slow speed action space
+        if not params['speed'] < 5:
+         	return 1e-3    
     
-    # Calculate the direction of the center line based on the closest waypoints
-    next_point = params['waypoints'][params['closest_waypoints'][1]]
-    prev_point = params['waypoints'][params['closest_waypoints'][0]]
-
-    # Calculate the direction in radius, arctan2(dy, dx), the result is (-pi, pi) in radians
-    track_direction = math.atan2(next_point[1] - prev_point[1], next_point[0] - prev_point[0]) 
-    # Convert to degree
-    track_direction = math.degrees(track_direction)
-
-    # Calculate the difference between the track direction and the heading direction of the car
-    direction_diff = abs(track_direction - params['heading'])
-    if direction_diff > 180:
-        direction_diff = 360 - direction_diff
+        # Penalize if the car goes off track
+        if not params['all_wheels_on_track']:
+            return 1e-3
+        
+        # - - - - - 
+        
+        # Calculate the direction of the center line based on the closest waypoints
+        next_point = params['waypoints'][params['closest_waypoints'][1]]
+        prev_point = params['waypoints'][params['closest_waypoints'][0]]
     
-    abs_heading_reward = 1 - (direction_diff / 180.0)
-    heading_reward = abs_heading_reward * heading_weight
+        # Calculate the direction in radius, arctan2(dy, dx), the result is (-pi, pi) in radians
+        track_direction = math.atan2(next_point[1] - prev_point[1], next_point[0] - prev_point[0]) 
+        # Convert to degree
+        track_direction = math.degrees(track_direction)
     
-    # - - - - -
+        # Calculate the difference between the track direction and the heading direction of the car
+        direction_diff = abs(track_direction - params['heading'])
+        if direction_diff > 180:
+            direction_diff = 360 - direction_diff
+        
+        abs_heading_reward = 1 - (direction_diff / 180.0)
+        heading_reward = abs_heading_reward * heading_weight
+        
+        # - - - - -
+        
+        # Reward if steering angle is aligned with direction difference
+        abs_steering_reward = 1 - (abs(params['steering_angle'] - direction_diff) / 180.0)
+        steering_reward = abs_steering_reward * steering_weight
     
-    # Reward if steering angle is aligned with direction difference
-    abs_steering_reward = 1 - (abs(params['steering_angle'] - direction_diff) / 180.0)
-    steering_reward = abs_steering_reward * steering_weight
-
-    # - - - - -
-    
-    return speed_reward + heading_reward + steering_reward
+        # - - - - -
+        
+        return speed_reward + heading_reward + steering_reward
 
 Now lets discuss the code:
 
 Input Parameters: The function takes a dictionary called params as its input. This dictionary contains information about the agent's state and the track.
+
 all_wheels_on_track: Indicates whether all wheels of the car are on the track.
+
 distance_from_center: Tells us how far the car is from the center of the track.
+
 track_width: Provides the width of the track.
+
 objects_location: Contains the locations of objects in front of the car.
+
 agent_x and agent_y: Represent the coordinates of the agent's position.
+
 closest_objects: Contains information about the closest objects.
+
 objects_left_of_center: Indicates whether objects are left of the center.
+
 is_left_of_center: Represents whether the agent is left of the center.
+
 Reward Initialization: The function initializes the reward with a small number (1e-3), but not zero, to distinguish between being off-track or crashed and being on the track.
+
 Reward for Staying in Lane (reward_lane): The function calculates a reward for the agent staying within the two borders of the track. If all wheels are on the track and the agent is within a certain distance from the center line (0.5 * track_width - distance_from_center >= 0.05), it receives a high reward (1.0). Otherwise, it gets a low default reward (1e-3).
+
 Penalty for Avoiding Objects (reward_avoid): The function penalizes the agent for getting too close to the next object in its path. The penalty varies based on the distance to the next object and whether the agent and the object are in the same lane.
+
 Distance Calculation: The function calculates the distance to the next object using the agent's and object's coordinates.
+
 Same Lane Check: It checks if the agent and the next object are in the same lane (i.e., both on the left or right of the center).
+
 Distance-Based Penalties: Depending on the distance to the next object and the same lane condition, the function adjusts the reward_avoid value, introducing penalties for getting too close.
+
 Final Reward Calculation: The final reward is calculated by combining both the reward_lane and reward_avoid components with different weights
 
 This reward function encourages the agent to stay within the track boundaries and penalizes it for getting too close to objects. The specific distances and penalties are fine-tuned to achieve the desired behavior. The result is a reward function that guides the DeepRacer agent to navigate the track while avoiding collisions with objects in its path, striking a balance between speed and safety. The exact performance of this function depends on the specific track and agent configuration but aims to optimize completion rates and lap times.
-
 
