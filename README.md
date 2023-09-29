@@ -16,36 +16,38 @@ In the realm of DeepRacer, the reward function serves as the guiding force shapi
 
 Lets begin with this baseline code for following the center line.
 
-def reward_function(params):
-    '''
-    Example of rewarding the agent to follow the center line
-    '''
+    def reward_function(params):
+        '''
+        Example of rewarding the agent to follow the center line
+        '''
+        
+        # Read input parameters
+        track_width = params['track_width']
+        distance_from_center = params['distance_from_center']
     
-    # Read input parameters
-    track_width = params['track_width']
-    distance_from_center = params['distance_from_center']
-
-    # Calculate 3 markers that are increasingly further away from the center line
-    marker_1 = 0.1 * track_width
-    marker_2 = 0.25 * track_width
-    marker_3 = 0.5 * track_width
-
-    # Give a higher reward if the car is closer to the center line and vice versa
-    if distance_from_center <= marker_1:
-        reward = 1
-    elif distance_from_center <= marker_2:
-        reward = 0.5
-    elif distance_from_center <= marker_3:
-        reward = 0.1
-    else:
-        reward = 1e-3  # likely crashed/close to off-track
-
-    return reward
+        # Calculate 3 markers that are increasingly further away from the center line
+        marker_1 = 0.1 * track_width
+        marker_2 = 0.25 * track_width
+        marker_3 = 0.5 * track_width
+    
+        # Give a higher reward if the car is closer to the center line and vice versa
+        if distance_from_center <= marker_1:
+            reward = 1
+        elif distance_from_center <= marker_2:
+            reward = 0.5
+        elif distance_from_center <= marker_3:
+            reward = 0.1
+        else:
+            reward = 1e-3  # likely crashed/close to off-track
+    
+        return reward
 
 Now, let's break down the components of this reward function:
 
 params is a dictionary containing various input parameters that provide information about the car's state.
+
 track_width provides the width of the track.
+
 distance_from_center indicates how far the car is from the center of the track.
 
 The implementation of this reward function has yielded promising results in training DeepRacer models. By motivating the agent to follow the center line, it has consistently produced cars with an excellent track-following capability. During training, the models demonstrated an impressive ability to stay close to the desired path, maintaining a strong track position. These outcomes underscore the significance of a well-tailored reward function in shaping DeepRacer behavior and showcase the potential for fine-tuning and further optimizations to achieve even more exceptional performance in subsequent iterations.
